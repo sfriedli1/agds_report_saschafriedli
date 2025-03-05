@@ -1,0 +1,78 @@
+---
+title: "re_tidy"
+output: html_document
+---
+```{R}
+library(dplyr)
+```
+import(dplyr)
+Vor dem umwandeln der Excel Datei in ein CSV-File habe ich folgende Anpassungen,
+um danach besser mit den Daten in R arbeiten zu können.
+Ich habe in der Spalte Depth das cm hinter jeder Zahl entfernt, damit nicht 
+Strings und Integers im gleichen Feld sind. Denn dies könnte Probleme verursachen,
+falls man damit Auswertungen durchführen wollen würde.
+Danach habe ich alle Zellen formatiert zu Zahlen, welche Zahlen-Werte beinhalten.
+Diese Zellen, welche Text beinhalten habe ich zu Text umformatiert. 
+Danach habe ich mich dazu entschieden, die Spalte Value treatment zu entfernen, 
+da diese Angaben für unsere Auswertungen nicht von Bedeutung sind und es sehr
+viele fehlende Werte hatte.
+Nach diesen Anpassungen habe ich die Excel Datei dann in ein CSV umgewandelt.
+
+
+Einlesen des CSV
+```{R}
+my_data <- read.csv("../data/tidy_data.CSV")
+View(my_data)
+
+```
+
+Aggregate data of early phase(<3 years since start)
+Use the filter function of the tidyverse, to create a new data frame, that only
+contains the correct values
+```{R}
+
+table_earlyphase <- dplyr::filter(my_data, Time..years. < 3.00)
+View(table_earlyphase)
+```
+
+Aggregate data of mid-phase(3-6 years since start)
+```{R}
+table_midphase <- dplyr::filter(my_data, Time..years. >=3.00 & Time..years. <=6.00 )
+View(table_midphase)
+```
+
+Aggregate data of late-phase(>6 yeas since start)
+```{R}
+table_latephase <- dplyr::filter(my_data, Time..years. >6.00)
+View(table_latephase)
+```
+
+Calculate the log-response ratio for early phase
+```{R}
+table_earlyphase$LRR <- log(as.numeric(table_earlyphase$increased.CO2)/as.numeric(table_earlyphase$ambient.CO2))
+View(table_earlyphase)
+
+```
+
+Calculate the log-response ratio for mid phase
+```{R}
+table_midphase$LRR <- log(as.numeric(table_midphase$increased.CO2)/as.numeric(table_midphase$ambient.CO2))
+View(table_midphase)
+```
+
+Calculate the log-response ratio for late phase
+```{R}
+table_latephase$LRR <- log(as.numeric(table_latephase$increased.CO2)/as.numeric(table_latephase$ambient.CO2))
+View(table_latephase)
+```
+
+Answer the following questions:
+
+What are the data that you are looking at?
+
+What do you expect your analysis to show, what is your hypothesis?
+How should soil organic matter content change under elevated CO2?
+
+Interpret your results after aggregating the data: What do your final numbers mean? 
+Do they support your initial hypothesis? Why so, why not?
+
