@@ -47,20 +47,20 @@ table_latephase <- dplyr::filter(my_data, Time..years. >6.00)
 View(table_latephase)
 ```
 
-Calculate the log-response ratio for early phase
+Add a new column for the log-response ratio and calculate it for all the entries in: table_earlyphase
 ```{R}
 table_earlyphase$LRR <- log(as.numeric(table_earlyphase$increased.CO2)/as.numeric(table_earlyphase$ambient.CO2))
 View(table_earlyphase)
 
 ```
 
-Calculate the log-response ratio for mid phase
+Add a new column for the log-response ratio and calculate it for all the entries in: table_midphase
 ```{R}
 table_midphase$LRR <- log(as.numeric(table_midphase$increased.CO2)/as.numeric(table_midphase$ambient.CO2))
 View(table_midphase)
 ```
 
-Calculate the log-response ratio for late phase
+Add a new column for the log-response ratio and calculate it for all the entries in: table_latephase
 ```{R}
 table_latephase$LRR <- log(as.numeric(table_latephase$increased.CO2)/as.numeric(table_latephase$ambient.CO2))
 View(table_latephase)
