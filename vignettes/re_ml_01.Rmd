@@ -1,0 +1,210 @@
+---
+title: "re_ml_01"
+output: 
+  html_document:
+    toc: true
+author: Sascha Friedli
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,        
+  warning = FALSE,    
+  message = FALSE,    
+  fig.align = "center"
+)
+```
+
+Importing relevant libraries
+```{R}
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(tidyr)
+library(caret)
+library(recipes)
+
+```
+
+Download the data set of daily fluxes
+```{R}
+download.file(
+  url = "https://raw.githubusercontent.com/geco-bern/agds_book/refs/heads/main/book/data/FLX_CH-Dav_FLUXNET2015_FULLSET_DD_1997-2014_1-3.csv",
+  destfile = "../data/df_for_ml.csv"
+)
+```
+
+Import the data set of daily fluxes and wrangle the data
+```{R}
+raw_data <- read.csv("../data/df_for_ml.csv") |>
+    # select only the variables we are interested in
+  dplyr::select(TIMESTAMP,
+                GPP_NT_VUT_REF,    # the target
+                ends_with("_QC"),  # quality control info
+                ends_with("_F"),   # includes all all meteorological covariates
+                -contains("JSB")   # weird useless variable
+                ) |>
+
+  # convert to a nice date object
+  dplyr::mutate(TIMESTAMP = lubridate::ymd(TIMESTAMP)) |>
+
+  # set all -9999 to NA
+  mutate(across(where(is.numeric), ~na_if(., -9999)))
+```
+
+Import the data set and remove data of insufficient quality
+```{R}
+quality_data <- read.csv("../data/df_for_ml.csv") |>
+  # select only the variables we are interested in
+  dplyr::select(TIMESTAMP,
+                GPP_NT_VUT_REF,    # the target
+                ends_with("_QC"),  # quality control info
+                ends_with("_F"),   # includes all all meteorological covariates
+                -contains("JSB")   # weird useless variable
+                ) |>
+
+  # convert to a nice date object
+  dplyr::mutate(TIMESTAMP = lubridate::ymd(TIMESTAMP)) |>
+
+  # set all -9999 to NA
+  mutate(across(where(is.numeric), ~na_if(., -9999))) |> 
+  
+  # retain only data based on >=80% good-quality measurements
+  # overwrite bad data with NA (not dropping rows)
+  dplyr::mutate(GPP_NT_VUT_REF = ifelse(NEE_VUT_REF_QC < 0.8, NA, GPP_NT_VUT_REF),
+                TA_F           = ifelse(TA_F_QC        < 0.8, NA, TA_F),
+                SW_IN_F        = ifelse(SW_IN_F_QC     < 0.8, NA, SW_IN_F),
+                LW_IN_F        = ifelse(LW_IN_F_QC     < 0.8, NA, LW_IN_F),
+                VPD_F          = ifelse(VPD_F_QC       < 0.8, NA, VPD_F),
+                PA_F           = ifelse(PA_F_QC        < 0.8, NA, PA_F),
+                P_F            = ifelse(P_F_QC         < 0.8, NA, P_F),
+                WS_F           = ifelse(WS_F_QC        < 0.8, NA, WS_F)) |> 
+
+  # drop QC variables (no longer needed)
+  dplyr::select(-ends_with("_QC"))
+
+```
+
+### Description of the data set
+The data set that we use in this analysis contains daily measurements of the GPP and a range of meteorological variables. The data was recorded between 1997-2014 at the site in Davos, Switzerland.
+
+## Comparison of the linear regression and KNN models
+
+### Fitting and evaluating the linear regression model and the KNN
+```{R}
+# Data splitting
+set.seed(1982)  # for reproducibility
+split <- rsample::initial_split(quality_data, prop = 0.7, strata = "VPD_F")
+daily_fluxes_train <- rsample::training(split)
+daily_fluxes_test <- rsample::testing(split)
+
+# Model and pre-processing formulation, use all variables but LW_IN_F
+pp <- recipes::recipe(GPP_NT_VUT_REF ~ SW_IN_F + VPD_F + TA_F, 
+                      data = daily_fluxes_train |> drop_na()) |> 
+  recipes::step_BoxCox(recipes::all_predictors()) |> 
+  recipes::step_center(recipes::all_numeric(), -recipes::all_outcomes()) |>
+  recipes::step_scale(recipes::all_numeric(), -recipes::all_outcomes())
+
+# Fit linear regression model
+mod_lm <- caret::train(
+  pp, 
+  data = daily_fluxes_train |> drop_na(), 
+  method = "lm",
+  trControl = caret::trainControl(method = "none"),
+  metric = "RMSE"
+)
+
+# Fit KNN model
+mod_knn <- caret::train(
+  pp, 
+  data = daily_fluxes_train |> drop_na(), 
+  method = "knn",
+  trControl = caret::trainControl(method = "none"),
+  tuneGrid = data.frame(k = 8),
+  metric = "RMSE"
+)
+
+```
+
+Import function for visualizing the models:
+```{R}
+source("../R/eval_model.R")
+```
+
+Visualize Linear model:
+```{R}
+eval_model(mod = mod_lm, df_train = daily_fluxes_train, df_test = daily_fluxes_test)
+```
+
+Visualize KNN model:
+```{R}
+eval_model(mod = mod_knn, df_train = daily_fluxes_train, df_test = daily_fluxes_test)
+```
+
+### Interpret observed differences in the context of the bias-variance trade-off
+
+Why is the difference between the evaluation on the training and the test set larger for the KNN model than for the linear regression model?
+The difference between the evaluation on the training and the test set is larger for the KNN model, because the KNN model adjusts more closely to the data, because it can model more complex local structures in the data. Due to this it will achieve better performance on the training data. However, this high flexibilty to adjust to the training data makes it more prone to overfitting and when used to model test data, which is data that it has not been trained on, the performance decreases more significantly compared to the linear model.
+
+Why does the evaluation on the test set indicate a better model performance of the KNN model than the linear regression model?
+The KNN model shows better performance, because it can capture non-linear relationships between the target and predictor variables. A linear regression model can only model linear relationships in the data, where as the KNN model can also capture more complex local structures in the data. The relationship between the gross primary product (GPP) and the various meteorological variables likely is more complex than just linear and these more complex relations in the data can be modeled better with a KNN model than a linear regression model provided that k is chosen appropriately and overfitting is avoided. 
+
+How would you position the KNN and the linear regression model along the spectrum of the bias-variance trade-off?
+The linear regression model lies on the high-bias, low-variance end of the spectrum. It imposes the strong assumption of linearity and can there for not adapt to non-linear relationships in the data, potentially leading to underfitting.
+The KNN model lies on the low-bias, high-variance end of the spectrum. Due to it high flexibility it can closely follow the training data. This decreases bias, but increases variance making it prone to overfitting. However, it is important to note that where on the spectrum of bias and variance a KNN model actually is, is strongly dependend on k. With an increasing k the model generally moves from a low-bias, high-variances to a more high-bias, low-variance end of the spectrum.
+
+### Visualization of temporal variations of observed and modelled GPP for both models
+
+For visualizing the data first prepare the data for visualization by adding data that was predicted using linear regression and a KNN model.
+```{R}
+# Prepare the data for the temporal visualization using the complete data
+predictors <- c("SW_IN_F", "VPD_F", "TA_F")
+target <- "GPP_NT_VUT_REF"
+
+plot_data <- quality_data |> 
+  dplyr::select(TIMESTAMP, all_of(target), all_of(predictors)) |>
+  tidyr::drop_na() |>
+  dplyr::filter(if_all(all_of(predictors), ~ . > 0)) # Exclude data if a predictor is negative
+
+# Apply the preprocessing recipe
+pp_prep <- recipes::prep(pp, training = daily_fluxes_train |> drop_na())
+plot_data_prepped <- recipes::bake(pp_prep, new_data = plot_data)
+
+# Check for debugging
+if (anyNA(plot_data_prepped)) {
+  print("Still NA values present after preprocessing – check data or BoxCox suitability.")
+}else{
+# Add the predictions to the data that we will use for visualization
+plot_data$lm_pred <- predict(mod_lm, newdata = plot_data_prepped)
+plot_data$knn_pred <- predict(mod_knn, newdata = plot_data_prepped)
+}
+
+```
+
+Visualize the observed GPP and the modeled GPP using linear regression and KNN
+```{R}
+# Restructure the data before plotting
+plot_data_long <- plot_data |>
+  tidyr::pivot_longer(cols = c(GPP_NT_VUT_REF, lm_pred, knn_pred),
+                      names_to = "type",
+                      values_to = "value")
+
+# Plot
+ggplot(plot_data_long, aes(x = TIMESTAMP, y = value, color = type)) +
+  geom_line(alpha = 0.6) +
+  labs(
+    title = "Temporal variation of GPP: Observed vs Predicted",
+    subtitle = "Observed GPP vs. Linear Regression and KNN predictions",
+    x = "Date", y = "GPP [µmol m⁻² s⁻¹]",
+    color = "Data"
+  ) +
+  theme_minimal()
+
+```
+
+
+## Exploring the role of k in a KNN model
+
+
+
+
+

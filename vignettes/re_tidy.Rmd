@@ -1,78 +1,138 @@
 ---
 title: "re_tidy"
 output: html_document
+author: Sascha Friedli
 ---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,        
+  warning = FALSE,    
+  message = FALSE,    
+  fig.align = "center"
+)
+```
+
+Installing necessary libraries
 ```{R}
 library(dplyr)
 ```
-import(dplyr)
-Vor dem umwandeln der Excel Datei in ein CSV-File habe ich folgende Anpassungen,
-um danach besser mit den Daten in R arbeiten zu können.
-Ich habe in der Spalte Depth das cm hinter jeder Zahl entfernt, damit nicht 
-Strings und Integers im gleichen Feld sind. Denn dies könnte Probleme verursachen,
-falls man damit Auswertungen durchführen wollen würde.
-Danach habe ich alle Zellen formatiert zu Zahlen, welche Zahlen-Werte beinhalten.
-Diese Zellen, welche Text beinhalten habe ich zu Text umformatiert. 
-Danach habe ich mich dazu entschieden, die Spalte Value treatment zu entfernen, 
-da diese Angaben für unsere Auswertungen nicht von Bedeutung sind und es sehr
-viele fehlende Werte hatte.
-Nach diesen Anpassungen habe ich die Excel Datei dann in ein CSV umgewandelt.
+## Procedure for editing the Excel file
 
+Before converting the Excel file into a CSV file, I made the following adjustments,
+to be able to work better with the data in R afterwards.
+I removed the cm after each number in the Depth column so that strings and integers are not
+in the same field. Because this could cause problems, if you wanted to carry out evaluations with it.
+Then I formatted all cells to numbers that contain numerical values.
+I reformatted the cells containing text to strings. 
+I then decided to remove the Value treatment column, as this information is not 
+important for our evaluations and it had a lot of missing values.
+Finally, I removed empty rows at the beginning of the table so that the column headings
+of the table are correctly recognized as such when they are read into R.
+After making these adjustments, I then converted the Excel file into a CSV.
 
-Einlesen des CSV
+## Evaluation of the data with R
+
+Importing the CSV
 ```{R}
 my_data <- read.csv("../data/tidy_data.CSV")
-View(my_data)
+```
 
+Further cleaning of data set, so that it only includes the relevant rows und columns
+```{R}
+my_data <- my_data %>% select(Time..years., ambient.CO2, increased.CO2)
 ```
 
 Aggregate data of early phase(<3 years since start)
 Use the filter function of the tidyverse, to create a new data frame, that only
 contains the correct values
 ```{R}
-
 table_earlyphase <- dplyr::filter(my_data, Time..years. < 3.00)
-View(table_earlyphase)
 ```
 
 Aggregate data of mid-phase(3-6 years since start)
 ```{R}
 table_midphase <- dplyr::filter(my_data, Time..years. >=3.00 & Time..years. <=6.00 )
-View(table_midphase)
 ```
 
 Aggregate data of late-phase(>6 yeas since start)
 ```{R}
 table_latephase <- dplyr::filter(my_data, Time..years. >6.00)
-View(table_latephase)
 ```
 
-Add a new column for the log-response ratio and calculate it for all the entries in: table_earlyphase
+Calculate the Log Response Ratio for each of the three phases
 ```{R}
-table_earlyphase$LRR <- log(as.numeric(table_earlyphase$increased.CO2)/as.numeric(table_earlyphase$ambient.CO2))
-View(table_earlyphase)
-
+table_earlyphase <- table_earlyphase %>% mutate(Log_Response_Ratio = log(increased.CO2 / ambient.CO2))
+table_midphase <- table_midphase %>% mutate(Log_Response_Ratio = log(increased.CO2 / ambient.CO2))
+table_latephase <- table_latephase %>% mutate(Log_Response_Ratio = log(increased.CO2 / ambient.CO2))
 ```
 
-Add a new column for the log-response ratio and calculate it for all the entries in: table_midphase
+Aggregate the Log Response Ratio for each phase by calculating the mean of the Log Response Ratio for each phase
 ```{R}
-table_midphase$LRR <- log(as.numeric(table_midphase$increased.CO2)/as.numeric(table_midphase$ambient.CO2))
-View(table_midphase)
+mean_earlyphase <- mean(table_earlyphase$Log_Response_Ratio, na.rm = TRUE)
+mean_midphase <- mean(table_midphase$Log_Response_Ratio, na.rm = TRUE)
+mean_latephase <- mean(table_latephase$Log_Response_Ratio, na.rm =TRUE)
 ```
 
-Add a new column for the log-response ratio and calculate it for all the entries in: table_latephase
+Build a new data frame that consists of the mean Log Response Ratio for each of the 3 phases
 ```{R}
-table_latephase$LRR <- log(as.numeric(table_latephase$increased.CO2)/as.numeric(table_latephase$ambient.CO2))
-View(table_latephase)
+table_result <- data.frame(Phase = c("Early (<3 years)", "Mid (3-6 years)", "Late (>6 years)"), Mean_LRR = c(mean_earlyphase, mean_midphase, mean_latephase))
 ```
 
-Answer the following questions:
+Presentation of the result with function knitr::kable() function
+```{R}
+knitr::kable(table_result)
+```
 
-What are the data that you are looking at?
+## Answering the Questions of the exercise
 
-What do you expect your analysis to show, what is your hypothesis?
-How should soil organic matter content change under elevated CO2?
+### What are the data that you are looking at?
+The data we are looking at contains information on soil organic carbon measurements.
+In our data set we have data from multiple experiments from different locations. 
+Each experiment contains measurements of soil organic carbon under ambient CO2 
+and under increased CO2 conditions. For each experiment we also get
+information on the depth at which the measurements were taken and how long it 
+has been since the start of the experiment.
 
-Interpret your results after aggregating the data: What do your final numbers mean? 
-Do they support your initial hypothesis? Why so, why not?
+### What do you expect your analysis to show, what is your hypothesis?
+### How should soil organic matter content change under elevated CO2?
+I would expect the analysis to show a correlation between increased CO2 conditions
+and the soil organcic carbon (SOC) measurements. 
+My hypothesis is that increased CO2 leads to an increase in SOC. Therefore the
+Log Response Ratio log(increased CO2 / ambient CO2) should be positive.
+So under elevated CO2 the SOC should be elevated.
 
+### Interpret your results after aggregating the data: What do your final numbers mean? 
+### Do they support your initial hypothesis? Why so, why not?
+The results after aggregating the data show, that for the experiments that are
+in the early phase (<3 years since start) the mean Log Response Ratio is roughly
+0.013. In those experiments we therefore observe an increase in SOC of 1.3% under 
+elevated CO2. For the experiments that lay in the middle phase (3-6 years since start)
+the mean Log Response Ratio is roughly 0.017. This indicates that we observed an increase
+in SOC of 1.7% under elevated CO2 conditions. The aggregation of the experiments 
+in the late phase (>6 years since start) the mean Log Response Ratio is roughly -0.03.
+We therefore observe a significant decrease in SOC of 30% under elevated CO2 conditions.
+
+The calculations of the mean Log Response Ratio for the early and middle phase support 
+my hypothesis, because both for the early and middle phase the Log Response Ratio is 
+positive and therefore indicates an increase in SOC under elevated CO2 conditions. 
+However the calculations for the late phase do not support my hypothesis that increased
+CO2 correlates with higher SOC and therefore a positive Log Response Ratio.
+The descrepancies between the hypothesis and the calculations of the mean Log Response 
+Ratio during the late phase can maybe be linked to the data that I am using for my 
+calculations. Something that is conspicuous about the data that is contained in the
+late phase is, that 30 of the 67 observations in the data set table_latephase is
+from the publication Talhelm et al. 2009. This publication made all their measurements
+in Aspen USA. However the measurements were made under varying preconditions. 
+Some of the measurements were made in a forest with birchs, some were made in a
+forest with Mapels and for some experiments additional O3 was involved. 
+Maybe those factors could influence the measurements because according to 
+Terrer, C., Phillips, R.P., Hungate, B.A. et al.(2021) they observed that in 
+non-fertilized experiments an increase in biomass is associated with decreasing 
+SOC stocks. The increasing of biomass takes some time to take place, maybe
+that is why we only observe the negative mean Log Response Ratio in the experiments 
+that are in the late phase.
+
+## References
+Groenigen, Kees Jan van, Xuan Qi, Craig W. Osenberg, Yiqi Luo, and Bruce A. Hungate. “Faster Decomposition Under Increased Atmospheric CO2 Limits Soil Carbon Storage.” Science 344, no. 6183 (May 2, 2014): 508–9. https://doi.org/10.1126/science.1249534
+
+Terrer, C., Phillips, R.P., Hungate, B.A. et al. A trade-off between plant and soil carbon storage under elevated CO2. Nature 591, 599–603 (2021). https://doi.org/10.1038/s41586-021-03306-8

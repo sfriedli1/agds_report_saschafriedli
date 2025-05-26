@@ -1,0 +1,137 @@
+---
+title: "re_airquality"
+output: html_document
+author: Sascha Friedli
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,        
+  warning = FALSE,    
+  message = FALSE,    
+  fig.align = "center"
+)
+```
+
+Importing relevant libraries
+```{R}
+library(ggplot2)
+library(readr)
+library(lubridate)
+library(dplyr)
+library(patchwork)
+```
+
+Import the data set airquality
+```{R}
+raw_data <- datasets::airquality
+my_data <- raw_data
+```
+
+## Description of data set
+In the data set airqulity we have variables that describe the ozone content, the solar radiation, 
+the wind speed, the temperature and the month and day. The ozone data was obtained from the New York State
+Department of Conservation. The meteorological data was obtained from the National Weather Service.
+The data was recorded between the 1st of May until the 30th of September in 1973.
+The ozone content is measured in parts per billion between 13:00 and 15:00 at Roosevelt Island.
+The solar radiation is measured in the frequency band 4000-7700, so the visible light spectrum.
+The unit of the measurement is Langleys which refers to the amount of energy recived
+by a surface per squre centimeter. Measurements are taken from 08:00 to 12:00 at Central Park.
+The wind speed represents the average of the measurement between 07:00 and 10:00 in miles per hour
+at LaGuardia Airport.
+The temperature is the daily maximum in degrees Fahrenheit at LaGuardia Airport.
+
+## Question of the report
+Do higher temperature measurements correspond with high solar radiation and to 
+which degree is there a connection between ozone content and solar radiation?
+
+## Statistical Metrics for analyzing the airquality data set
+Analyse the distribution of the variables solar radiation, ozone and temperature
+by calculating the Shapiro-Wilks Test. 
+```{R}
+distributionSolarRadiation <- shapiro.test(my_data$Solar.R[!is.na(my_data$Solar.R)])
+distributionOzone <- shapiro.test(my_data$Ozone[!is.na(my_data$Ozone)])
+distributionTemperature <- shapiro.test(my_data$Temp[!is.na(my_data$Temp)])
+
+```
+According to the calculation of the Shapiro-Wilks Test for each of the three variables
+of interest the p-Value is below 0.01 indicating that all three variables are not 
+normally distributed. Therefore we are going to calculate the Spearman Correlation
+for our analyzise.
+
+Calculate the Spearman Correlation of the temperature and solar radiation. 
+```{R}
+spearman_correlation_Temp_Solar <- cor.test(my_data$Temp,my_data$Solar.R, method = "spearman", conf.level = 0.95,
+                                            use = "complete.obs")
+
+```
+Calculate the Spearman Correlation of the ozone content and solar radiation. 
+```{R}
+spearman_correlation_Ozone_Solar <- cor.test(my_data$Ozone,my_data$Solar.R, method = "spearman", conf.level = 0.95,
+                                             use = "complete.obs")
+
+```
+Calculate the Interquartile Range of the three variables solar radiation, ozone and temperature 
+to identify how widely the middle 50% of each variable is spread.
+```{R}
+IQR_ozone <- IQR(my_data$Ozone, na.rm = TRUE)
+IQR_solarRadiation <- IQR(my_data$Solar.R, na.rm = TRUE)
+IQR_temperature <- IQR(my_data$Temp, na.rm = TRUE)
+
+```
+
+## Figures for analyzing the airquality data set
+Create a scatterplot to visualize the regression of temperature and solar radiation.
+```{R}
+plot_temp_radiation <- ggplot(my_data, aes(x = Temp, y= Solar.R))+
+  labs(title = "Temperature vs. Solar Radiation", x = "Temperature (°F)", y = "Solar Radiation (Langley)")+
+  geom_point(shape=1, na.rm = TRUE)+
+  geom_smooth(method = "loess", se = TRUE, na.rm = TRUE)
+
+plot_temp_radiation
+  
+```
+Create a scatterplot to visualize the regression of ozone and solar radiation.
+```{R}
+plot_ozone_radiation <- ggplot(my_data, aes(x = Ozone, y= Solar.R))+
+  labs(title = "Ozone vs. Solar Radiation", x = "Ozone (ppb)", y = "Solar Radiation (Langley)")+
+  geom_point(shape=1, na.rm = TRUE)+
+  geom_smooth(method = "loess", se = TRUE, na.rm = TRUE)
+
+plot_ozone_radiation
+
+```
+Create a boxplot for solar radiation to visualize the distribution of this variable
+```{R}
+month_levels <- sort(unique(my_data$Month[!is.na(my_data$Month)])) ## Extract the months
+month_labels <- c("May", "Jun", "Jul", "Aug", "Sep") ## Create labels for the months
+
+my_data$Month <- factor(my_data$Month,
+                        levels = month_levels,
+                        labels = month_labels)
+# Boxplot 1 – Solar Radiation
+p1 <- ggplot(my_data, aes(x = Month, y = Solar.R)) +
+  geom_boxplot(outlier.color = "red", na.rm = TRUE) +
+  labs(title = "Solar Radiation by Month", y = "Solar Radiation (Langley)")
+
+# Boxplot 2 – Temperature
+p2 <- ggplot(my_data, aes(x = Month, y = Temp)) +
+  geom_boxplot(outlier.color = "red", na.rm = TRUE) +
+  labs(title = "Temperature by Month", y = "Temperature (°F)")
+
+# Boxplot 3 – Ozone
+p3 <- ggplot(my_data, aes(x = Month, y = Ozone)) +
+  geom_boxplot(outlier.color = "red", na.rm = TRUE) +
+  labs(title = "Ozone Concentration by Month", y = "Ozone (ppb)")
+
+# Visualize Boxplots next to each other
+p1 + p2 + p3
+
+```
+
+## Discussion
+To examine the relationship between the temperature and the solar radiation I calculated the Spearman correlation between the two variables alongside a scatter plot to visualize the LOESS regression. The Spearman correlation coefficient is p = 0.21 with an approximate p-Value of 0.027. This indicates a statistically significant weak positive correlation between temperature and solar radiation. This trend can also be observed in the scatter plot between temperature and solar radiation. The regression line has an upward trend as we go from lower to higher temperature. However, the wide 95% confidence interval of the regression line indicates substantial variability supporting the weak correlation. Seasonal patterns observed in the box plots reinforce this finding. However, the median solar radiation in May is almost identical to the solar radiation in June where as the temperature in May is significantly lower in May. This suggests that other factors influence the temperature.
+For analyzing the relationship between ozone concentration and solar radiation a Spearman correlation was conducted. The Spearman correlation coefficient is p = 0.35 with an approximate p-Value of 0.0002. This indicates that there is a statistically significant rather weak positive correlation between ozone content and solar radiation. The scatter plot confirms this trend but shows a plateau at higher ozone levels likely influenced by a few extreme values above 100 ppb. The regression line flattens in this range, and the widening confidence interval indicates increased uncertainty. Without these observations the regression line would be more gradually increasing and not flatting as much. This could be an indication that the correlation would be even stronger when ignoring the values of high Ozone concentration. As with temperature, July shows the highest median ozone concentration and solar radiation, supporting a seasonal association.
+Returning to the research question, we find that in general higher temperatures do correlate with increased solar radiation and elevated ozone content do correlate with increased solar radiation. However, in both cases the correlation is not very strong.
+
+
+

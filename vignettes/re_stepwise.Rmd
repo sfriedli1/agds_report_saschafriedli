@@ -1,0 +1,196 @@
+---
+title: "re_stepwise"
+output: html_document
+author: Sascha Friedli
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,        
+  warning = FALSE,    
+  message = FALSE,    
+  fig.align = "center"
+)
+```
+
+Importing relevant libraries
+```{R}
+library(dplyr)
+library(tidyr)
+library(readr)
+library(purrr)
+library(broom)
+library(ggplot2)
+```
+
+Download the data set of half-hourly fluxes
+```{R}
+download.file(
+  url = "https://raw.githubusercontent.com/geco-bern/agds_book/refs/heads/main/book/data/df_for_stepwise_regression.csv",
+  destfile = "../data/df_for_stepwise_regression.csv"
+)
+
+```
+
+Import the data set of half-hourly fluxes
+```{R}
+raw_data <- read_csv("../data/df_for_stepwise_regression.csv")
+```
+
+### Description of the data set
+The dataset consists of half-hourly measurements of ecosystem fluxes collected at various monitoring sites in Switzerland and is provided by FLUXNET. It contains about 23'000 observations and 15 predictor variables, including radiation fluxes, temperature, humidity and air pressure. The target variable is GPP_NT_VUT_REF, which represents gross primary productivity (GPP) estimated using flux partitioning methods.
+Several variables are closely related or derived from each other, such as SW_IN_F and SW_IN_F_MDS (incoming shortwave radiation) or LW_IN_F and LW_IN_F_MDS (incoming longwave radiation). These interdependencies can lead to multicollinearity, which is important for model selection and interpretation.
+
+# Evaluation of bivariate models with single predictor
+
+Implementation of steps 1-3 of the algorithm for stepwise forward regression
+```{R}
+# Target variable
+target <- "GPP_NT_VUT_REF"
+# Set potential predictors
+predictors <- setdiff(names(raw_data), target)
+# Calculate R2 and AIC for each of the predictors
+model_results <- map_dfr(predictors, function(pred) {
+  formula <- as.formula(paste(target, "~", pred))
+  model <- lm(formula, data = raw_data)
+  tibble(
+    predictor = pred,
+    R2 = summary(model)$r.squared,
+    AIC = AIC(model)
+  )
+})
+# Sort the model_results according to R2 in descending order
+model_results_sorted <- model_results %>% arrange(desc(R2))
+
+```
+
+### Visualization R2 for all predictors with Barplot
+```{R}
+ggplot(model_results_sorted, aes(x = reorder(predictor, R2), y = R2)) +
+  geom_col(fill = "blue") +
+  coord_flip() +
+  labs(title = "R² für alle bivariaten Modelle",
+       x = "Prädiktor", y = expression(R^2)) +
+  theme_minimal()
+
+```
+
+### Visualization of best fitting model with Scatterplot
+```{R}
+best_pred <- model_results_sorted$predictor[1]
+
+ggplot(raw_data, aes_string(x=best_pred, y=target))+
+  geom_point(alpha = 0.3)+
+  geom_smooth(method="lm", color= "red", se=FALSE)+
+  labs(title = paste("Best bivariate model: GPP~",best_pred),
+       x = best_pred, y = target)+
+  theme_classic()
+
+```
+
+## Discussion of bivariate model with one predictor
+The bivariate model with the highest R-Squared uses the predictor PPFD_IN. This variable captures the incoming photosynthetic photon flux density. The fact that this variable has the highest R-Squared means that it explains the most of the dispersion in the GPP. Out of all the predictors this one has the lowest AIC with a value of 77577.87 which supports the fact that this is the most appropriate variable to explain the dispersion in the GPP. The significantly higher value of AIC of the other values indicate, that they are less suited to explain the dispersion in the GPP in an isolated model. The visulisation of the bivariate model with the PPFD_IN as the predictor shows that there for most data points the regression fits nicely and there are not that many outliers. However for higher values of PPFD_IN the model does not seem to fit adequatly because there are significantly more data points below the regression line, than above it. With the inclusion of further predictors the model can probably still be optimized.
+
+# Implementation of complete stepwise forward regression
+```{R}
+# Preparation
+target <- "GPP_NT_VUT_REF"
+# Remove the siteid, because it is not numerical data
+data_without_siteid <- raw_data %>%
+  select(-siteid)
+
+predictors <- setdiff(names(data_without_siteid), target)
+
+current_predictors <- c()
+remaining <- predictors
+
+# Start only with Intercept
+best_model <- lm(GPP_NT_VUT_REF ~ 1, data = data_without_siteid)
+best_aic <- AIC(best_model)
+
+stepwise_log <- list()
+
+repeat {
+  candidate_r2 <- list()
+
+  # Fit all models with one additional predictor
+  for (var in remaining) {
+    formula <- as.formula(paste(target, "~", paste(c(current_predictors, var), collapse = " + ")))
+    model <- lm(formula, data = data_without_siteid)
+    r2 <- summary(model)$r.squared
+    
+    candidate_r2[[var]] <- list(
+      model = model,
+      r2 = r2
+    )
+  }
+
+  # 2. Choose the model with best R2
+  r2_values <- sapply(candidate_r2, function(x) x$r2)
+  best_var <- names(which.max(r2_values))
+  best_model_r2 <- candidate_r2[[best_var]]$model
+
+  # 3. Calculate the AIC of the best model
+  aic_new <- AIC(best_model_r2)
+
+  # 4. Compare the AIC of the new model with the best model so far
+  if (aic_new < best_aic) {
+    best_aic <- aic_new
+    current_predictors <- c(current_predictors, best_var)
+    remaining <- setdiff(remaining, best_var)
+    best_model <- best_model_r2
+
+    # Safe the step
+    stepwise_log[[length(current_predictors)]] <- list(
+      predictor = best_var,
+      R2 = summary(best_model)$r.squared,
+      AIC = best_aic
+    )
+  } else {
+    break  # If the AIC is worse quit the algorithm
+  }
+}
+
+# Safe the final result in a data frame
+stepwise_df <- tibble(
+  step = seq_along(stepwise_log),
+  predictor = sapply(stepwise_log, function(x) x$predictor),
+  R2 = sapply(stepwise_log, function(x) x$R2),
+  AIC = sapply(stepwise_log, function(x) x$AIC)
+)
+
+```
+
+### Visualization of developement of AIC
+```{R}
+ggplot(stepwise_df, aes(x=step, y = AIC))+
+  geom_line(color="red")+
+  geom_point()+
+  labs(title = "Modelcomplexity vs. AIC",
+       x= "Number of Variables in Model", y ="AIC" )+
+  theme_minimal()
+
+```
+
+### Visualization of R2 in dependence of added variables
+```{R}
+ggplot(stepwise_df, aes(x = reorder(predictor, R2), y = R2)) +
+  geom_col(fill = "blue") +
+  coord_flip() +
+  labs(
+    title = "Explained Variance (R²) per Predictor (summed up)",
+    x = "Predictor", y = expression(R^2)) +
+  theme_minimal()
+
+```
+
+### Calculate Multicolinerarity of LW_IN_F and LW_IN_F_MDS
+```{R}
+pearson_cor_LW_IN <- cor(data_without_siteid$LW_IN_F, data_without_siteid$LW_IN_F_MDS, use = "complete.obs")
+
+```
+
+## Analysis and discussion of the results
+After going through the complete algorithm of the stepwise forward regression resulted in 10 of the 16 potential variables being included in the model. The early selection of PPFD_IN, LW_IN_F and VPD_F aligns well with known drivers of photosynthesis, highlighting the importance of long wave radiation for temperature regulation especially during the night and the vapor pressure deficit in regulating gross primary productivity. 
+The visualization of the Modelcomplexity vs. AIC shows that for the first 5-6 Variable the AIC decreases significantly for each variable that is being added to the model. This is consistent with the R-Squared. According to the R-Squared the first Variable (PPFD_IN), which stands for the incoming photosynthetic photon flux density already explains 45.21 % of the variability in the GPP. For the first 5 additional variables the grafic shows that the R-Squared improves significantly. For the remaining variables in the model the improvements after adding an additional variable is less and less significant. Adding to many variables that only marginaly improve the R-Squared could lead the model to becoming prone to overfitting. Another interesting finding is that for example our model included LW_IN_F but it did not include LW_IN_F_MDS even though both variables stand for the longwave radiation. So we would expect that they would both explain a similar amount of the dispersion in the GPP. But although LW_IN_F is the variable that explains the second most variance of the GPP, LW_IN_F_MDS is not included in our model at all. The reason for this is probably that LW_IN_F is partly consolidated from LW_IN_F_MDS and therefore this two variables have a high multicollinearity. This is supported by the Pearson Correlation Coefficient of 0.985. In a regression model we should avoid to use variables that have a high multicollinearity due to its destabilizing effects on the predictions of the model. That is why only one of the two variables was included through the stepwise forward regression where as the other one was not. A similar explanation applies to SW_IN_F and SW_IN_F_MDS. These variable both stand for the incoming shortwave radiation and again SW_IN_F is partly consolidated from SW_IN_F_MDS.
+The final model explains 59.84% of the variance in GPP. This solid considering the complexity of ecosystem processes. However this also means that there are still ~40% that are not being explained with this model. In this stepwise forward regression we used a linear model. If we also captured non-linear interactions by using a non-linear model we possibly could explain more of the variance in the GPP. 
+

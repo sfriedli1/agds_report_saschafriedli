@@ -1,0 +1,11 @@
+---
+title: "re_paircoding"
+output: html_document
+---
+
+Links to the repositories of the Pair Exercise
+The forked repositorie of Bea Toutcourt:
+https://github.com/sfriedli1/code_management_ex
+
+My repository:
+https://github.com/sfriedli1/Report_Ex_CodeManagement
