@@ -1,5 +1,5 @@
 ---
-title: "re_ml_01"
+title: "Report Exercise 10"
 output: 
   html_document:
     toc: true
@@ -100,7 +100,6 @@ daily_fluxes_test <- rsample::testing(split)
 # Model and pre-processing formulation, use all variables but LW_IN_F
 pp <- recipes::recipe(GPP_NT_VUT_REF ~ SW_IN_F + VPD_F + TA_F, 
                       data = daily_fluxes_train |> drop_na()) |> 
-  recipes::step_BoxCox(recipes::all_predictors()) |> 
   recipes::step_center(recipes::all_numeric(), -recipes::all_outcomes()) |>
   recipes::step_scale(recipes::all_numeric(), -recipes::all_outcomes())
 
@@ -154,57 +153,157 @@ The KNN model lies on the low-bias, high-variance end of the spectrum. Due to it
 
 ### Visualization of temporal variations of observed and modelled GPP for both models
 
-For visualizing the data first prepare the data for visualization by adding data that was predicted using linear regression and a KNN model.
-```{R}
-# Prepare the data for the temporal visualization using the complete data
-predictors <- c("SW_IN_F", "VPD_F", "TA_F")
-target <- "GPP_NT_VUT_REF"
+Predict GPP with the two different models and attach TIMESTAMP to predictions.
 
-plot_data <- quality_data |> 
-  dplyr::select(TIMESTAMP, all_of(target), all_of(predictors)) |>
-  tidyr::drop_na() |>
-  dplyr::filter(if_all(all_of(predictors), ~ . > 0)) # Exclude data if a predictor is negative
-
-# Apply the preprocessing recipe
-pp_prep <- recipes::prep(pp, training = daily_fluxes_train |> drop_na())
-plot_data_prepped <- recipes::bake(pp_prep, new_data = plot_data)
-
-# Check for debugging
-if (anyNA(plot_data_prepped)) {
-  print("Still NA values present after preprocessing – check data or BoxCox suitability.")
-}else{
-# Add the predictions to the data that we will use for visualization
-plot_data$lm_pred <- predict(mod_lm, newdata = plot_data_prepped)
-plot_data$knn_pred <- predict(mod_knn, newdata = plot_data_prepped)
-}
-
+Training data
+```{r}
+train_df <- daily_fluxes_train |> 
+  drop_na() |> 
+  select(TIMESTAMP) |>
+  mutate(
+  pred_lm = predict(mod_lm, newdata = daily_fluxes_train |> drop_na()),
+  pred_knn = predict(mod_knn, newdata = daily_fluxes_train |> drop_na())
+)
 ```
 
-Visualize the observed GPP and the modeled GPP using linear regression and KNN
-```{R}
-# Restructure the data before plotting
-plot_data_long <- plot_data |>
-  tidyr::pivot_longer(cols = c(GPP_NT_VUT_REF, lm_pred, knn_pred),
-                      names_to = "type",
-                      values_to = "value")
+Test data
+```{r}
+pred_df <- daily_fluxes_test |> 
+  drop_na() |> 
+  select(TIMESTAMP) |> 
+  mutate(
+    pred_lm = predict(mod_lm, newdata = daily_fluxes_test |> drop_na()),
+    pred_knn = predict(mod_knn, newdata = daily_fluxes_test |> drop_na())
+  )
+```
 
-# Plot
-ggplot(plot_data_long, aes(x = TIMESTAMP, y = value, color = type)) +
-  geom_line(alpha = 0.6) +
+
+Plot raw data and add predicted data from the test set - lm model
+```{r}
+ggplot(data = raw_data, aes(x = TIMESTAMP, y = GPP_NT_VUT_REF, color = "Observed")) +
+  geom_line(linewidth = 0.5) +
+  geom_line(data = pred_df, aes(x = TIMESTAMP, y = pred_lm, color = "Predicted"), linewidth = 0.5) +
   labs(
-    title = "Temporal variation of GPP: Observed vs Predicted",
-    subtitle = "Observed GPP vs. Linear Regression and KNN predictions",
-    x = "Date", y = "GPP [µmol m⁻² s⁻¹]",
-    color = "Data"
+    title = "Observed and Predicted GPP - Linear Regression Model",
+    x = "Date",
+    y = "GPP"
   ) +
-  theme_minimal()
-
+  scale_color_manual(name = "Series", values = c("Observed" = "black", "Predicted" = "lightgreen")) +
+  theme_classic()
 ```
+
+Plot raw data and add predicted data from the test set - KNN model
+```{r}
+ggplot(data = raw_data, aes(x = TIMESTAMP, y = GPP_NT_VUT_REF, color = "Observed")) +
+  geom_line(linewidth = 0.5) +
+  geom_line(data = pred_df, aes(x = TIMESTAMP, y = pred_knn, color = "Predicted"), linewidth = 0.5) +
+  labs(
+    title = "Observed and Predicted GPP - KNN Model",
+    x = "Date",
+    y = "GPP"
+  ) +
+  scale_color_manual(name = "Series", values = c("Observed" = "black", "Predicted" = "lightgreen")) +
+  theme_classic()
+```
+
+### Analysis of Observed vs. Predicted GPP:
+The prediction with a linear regression model as well as with the KNN model follow the general structure of the observed values decently. However, when analyzing the predictions at the points in the data where we have extreme values in the observed data both models do not match those extremes. For the predictions that were produced using linear regression the outliers in the positive direction are underestimated by the model. On the other hand some of the outliers in the negative direction are overestimated by the predictions of the linear regression model. The predictions with the KNN model underestimated outliers in the predictions and the predictions with the KNN model were not as good with the KNN model as with the linear regression model. This difference could be down to the fact that the prediction with the KNN model is done based on the values of the k-nearest neighbours and there for the predictions are ankered towards the neighbour values that were not as extreme. The prediction with the linear regression model is not influenced as directly by the neighbour-values and can therefore extrapolate a little bit better.
+Another interesting observation in the two plots is that our predictions only span over the years 2006-2014. For the predictions with the linear regression model and the KNN model we only used data with good quality. Our data with insufficient quality therefore is the data that is older. But we do not seem to have significant insufficients in the data after 2006, which is an indication, that the messurements nowdays are reliable.
 
 
 ## Exploring the role of k in a KNN model
 
+R squared is used as an indicator for how "good" the model is. It indicates how much variation in GPP is explained by the model.
 
+MAE is the mean absolute error and gives us the mean difference between observed and predicted values using absolute errors instead of the usual squared errors. By using absolute errors big errors have less importance than when looking at mean squared errors.
 
+### Hypothesis:
 
+As k approaches the total number of observations n, the KNN model becomes increasingly "blunt". It starts averaging over nearly the entire dataset for each prediction, effectively ignoring local patterns in the data. This leads to a model that is highly biased and underfitted, since it fails to capture the complexity of the underlying relationships. As a result, we expect to see a low R² (poor explanatory power) and a high MAE (poor prediction accuracy) on both the training and test sets. However, the model's variance will be low, since it behaves consistently across different subsets of data.
+
+In contrast, as k approaches 1, the model becomes extremely flexible, predicting based on the nearest single data point. This leads to overfitting: the model can perfectly capture the training data (resulting in high R² and low MAE), but it fails to generalize to unseen data. On the test set, this causes a higher MAE and a lower R², due to the model’s high variance and sensitivity to noise.
+
+### Testing the Hypothesis
+Split data into test and train set
+```{r}
+set.seed(376)
+split_knn <- rsample::initial_split(quality_data, prop = 0.7, strata = "VPD_F")
+daily_fluxes_knn_train <- rsample::training(split)
+daily_fluxes_knn_test <- rsample::testing(split)
+```
+
+Pre processing steps
+```{r}
+pp_knn <- recipes::recipe(GPP_NT_VUT_REF ~ SW_IN_F + VPD_F + TA_F, 
+                      data = daily_fluxes_knn_train |> drop_na()) |> 
+  recipes::step_BoxCox(recipes::all_predictors()) |> 
+  recipes::step_center(recipes::all_numeric(), -recipes::all_outcomes()) |>
+  recipes::step_scale(recipes::all_numeric(), -recipes::all_outcomes())
+```
+
+Create empty metrics df
+```{r}
+results_both <- data.frame(type = character(), k = integer(), MAE = numeric())
+```
+
+Loop over different values of k and store model metrics
+For better struture in the Markdown File I transferred this loop into a separate R-Script
+```{R}
+source("../R/run_KNN_loop.R")
+```
+
+Plot model metrics - MAE VS k
+```{r}
+ggplot(results_both, aes(x = k, y = MAE, color = type)) +
+  geom_line(linewidth = 1, alpha = 0.7) +
+  labs(
+    title = "MAE VS k", 
+    x = "k", 
+    y = "MAE") +
+  scale_color_manual(values = c("train" = "lightgreen", "test"= "lightblue")) +
+  scale_y_continuous(limits = c(0.7,1.2)) +
+  theme_minimal()
+```
+
+As predicted by our hypothesis, the plot shows that for values of k close to 1, the MAE on the training set is very low, while the MAE on the test set is considerably higher. This is a typical overfitting scenario: the model fits the training data almost perfectly (low bias), but fails to generalize well to new data due to high variance.
+As k increases towards 100, the MAE on both the training and test sets gradually converge. For the test set the MAE is lower for k=100 compared to k=1, where as for the training set the MAE is significantly higher for k=100 compared to k=1. This indicates underfitting for k=100. The model becomes overly simplistic by averaging over many neighbors, leading to high bias and low variance. In this regime, the model fails to capture meaningful patterns in both training and test data, and thus both MAE values remain relatively high.
+The transition between overfitting and underfitting is visible in the region where the test set MAE reaches its minimum. This point represents the optimal trade-off between bias and variance and corresponds to the best generalization performance. In this case, the optimal value appears to be around k=20.
+
+### Find the best k
+Extract MAE of the test set
+```{r}
+mae_test <- results_both |> 
+  filter(type == "test")
+```
+
+To find the best value for k, we evaluate the MAE (Mean Absolute Error) on the test set. Since the MAE does not decrease continuously with increasing k, we avoid stopping the loop at the first sign of a worse result. Instead, we introduce a patience value. We set the patience level to 15, this way we do not quit the loop instantly the first time the MAE starts to increase. Because then we would maybe only capture a "local minima" and not the "global minima" due to fluctuations in the MAE.
+
+Set loop features before start
+```{r}
+best_mae <- Inf
+best_k <- NA
+patience <- 15
+counter <- 0
+```
+
+Create a result data frame
+```{r}
+results_test <- data.frame(k = integer(), MAE = numeric())
+```
+
+Loop over k for values 1:100 to find the best fitting k.
+For better struture in the Markdown File I transferred this loop into a separate R-Script
+```{R}
+source("../R/early_stopping_KNN.R")
+
+```
+
+The best k for model generalization is therefore k = 19. The MAE is lowest for the test data at this k value and increases again with bigger k values.
+
+Control with the previously extracted MAE values
+```{r}
+which.min(mae_test$MAE)
+```
+
+The evaluation of the loop shows that MAE is minimized with k = 19 for k in 1:100.
 
