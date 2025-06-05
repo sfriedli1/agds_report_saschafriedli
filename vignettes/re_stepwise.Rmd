@@ -68,8 +68,8 @@ model_results_sorted <- model_results %>% arrange(desc(R2))
 ggplot(model_results_sorted, aes(x = reorder(predictor, R2), y = R2)) +
   geom_col(fill = "blue") +
   coord_flip() +
-  labs(title = "R² für alle bivariaten Modelle",
-       x = "Prädiktor", y = expression(R^2)) +
+  labs(title = "R² for all bivariate models",
+       x = "Predictors", y = expression(R^2)) +
   theme_minimal()
 
 ```
@@ -88,7 +88,7 @@ ggplot(raw_data, aes_string(x=best_pred, y=target))+
 ```
 
 ## Discussion of bivariate model with one predictor
-The bivariate model with the highest R-Squared uses the predictor PPFD_IN. This variable captures the incoming photosynthetic photon flux density. The fact that this variable has the highest R-Squared means that it explains the most of the dispersion in the GPP. Out of all the predictors this one has the lowest AIC with a value of 77577.87 which supports the fact that this is the most appropriate variable to explain the dispersion in the GPP. The significantly higher value of AIC of the other values indicate, that they are less suited to explain the dispersion in the GPP in an isolated model. The visulisation of the bivariate model with the PPFD_IN as the predictor shows that there for most data points the regression fits nicely and there are not that many outliers. However for higher values of PPFD_IN the model does not seem to fit adequatly because there are significantly more data points below the regression line, than above it. With the inclusion of further predictors the model can probably still be optimized.
+The bivariate model with the highest R-Squared uses the predictor PPFD_IN. This variable captures the incoming photosynthetic photon flux density. The fact that this variable has the highest R-Squared means that it explains the most of the dispersion in the GPP. Out of all the predictors this one has the lowest AIC with a value of 77577.87 which supports the fact that this is the most appropriate variable to explain the dispersion in the GPP. The significantly higher value of AIC of the other values indicate, that they are less suited to explain the dispersion in the GPP in an isolated model. The visulisation of the bivariate model with the PPFD_IN as the predictor shows that for most data points the regression fits nicely and there are not that many outliers. However for higher values of PPFD_IN the model does not seem to fit adequatly because there are significantly more data points below the regression line, than above it. With the inclusion of further predictors the model can probably still be optimized.
 
 # Implementation of complete stepwise forward regression
 ```{R}
@@ -178,7 +178,7 @@ ggplot(stepwise_df, aes(x = reorder(predictor, R2), y = R2)) +
   coord_flip() +
   labs(
     title = "Explained Variance (R²) per Predictor (summed up)",
-    x = "Predictor", y = expression(R^2)) +
+    x = "Predictors", y = expression(R^2)) +
   theme_minimal()
 
 ```
@@ -192,5 +192,5 @@ pearson_cor_LW_IN <- cor(data_without_siteid$LW_IN_F, data_without_siteid$LW_IN_
 ## Analysis and discussion of the results
 After going through the complete algorithm of the stepwise forward regression resulted in 10 of the 16 potential variables being included in the model. The early selection of PPFD_IN, LW_IN_F and VPD_F aligns well with known drivers of photosynthesis, highlighting the importance of long wave radiation for temperature regulation especially during the night and the vapor pressure deficit in regulating gross primary productivity. 
 The visualization of the Modelcomplexity vs. AIC shows that for the first 5-6 Variable the AIC decreases significantly for each variable that is being added to the model. This is consistent with the R-Squared. According to the R-Squared the first Variable (PPFD_IN), which stands for the incoming photosynthetic photon flux density already explains 45.21 % of the variability in the GPP. For the first 5 additional variables the grafic shows that the R-Squared improves significantly. For the remaining variables in the model the improvements after adding an additional variable is less and less significant. Adding to many variables that only marginaly improve the R-Squared could lead the model to becoming prone to overfitting. Another interesting finding is that for example our model included LW_IN_F but it did not include LW_IN_F_MDS even though both variables stand for the longwave radiation. So we would expect that they would both explain a similar amount of the dispersion in the GPP. But although LW_IN_F is the variable that explains the second most variance of the GPP, LW_IN_F_MDS is not included in our model at all. The reason for this is probably that LW_IN_F is partly consolidated from LW_IN_F_MDS and therefore this two variables have a high multicollinearity. This is supported by the Pearson Correlation Coefficient of 0.985. In a regression model we should avoid to use variables that have a high multicollinearity due to its destabilizing effects on the predictions of the model. That is why only one of the two variables was included through the stepwise forward regression where as the other one was not. A similar explanation applies to SW_IN_F and SW_IN_F_MDS. These variable both stand for the incoming shortwave radiation and again SW_IN_F is partly consolidated from SW_IN_F_MDS.
-The final model explains 59.84% of the variance in GPP. This solid considering the complexity of ecosystem processes. However this also means that there are still ~40% that are not being explained with this model. In this stepwise forward regression we used a linear model. If we also captured non-linear interactions by using a non-linear model we possibly could explain more of the variance in the GPP. 
+The final model explains 59.84% of the variance in GPP. This is solid considering the complexity of ecosystem processes. However this also means that there are still ~40% that are not being explained with this model. In this stepwise forward regression we used a linear model. If we also captured non-linear interactions by using a non-linear model we possibly could explain more of the variance in the GPP. 
 

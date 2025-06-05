@@ -400,7 +400,7 @@ mean_latephase &lt;- mean(table_latephase$Log_Response_Ratio, na.rm =TRUE)</code
 <p>Build a new data frame that consists of the mean Log Response Ratio
 for each of the 3 phases</p>
 <pre class="r"><code>table_result &lt;- data.frame(Phase = c(&quot;Early (&lt;3 years)&quot;, &quot;Mid (3-6 years)&quot;, &quot;Late (&gt;6 years)&quot;), Mean_LRR = c(mean_earlyphase, mean_midphase, mean_latephase))</code></pre>
-<p>Presentation of the result with function knitr::kable() function</p>
+<p>Presentation of the result using the knitr::kable() function</p>
 <pre class="r"><code>knitr::kable(table_result)</code></pre>
 <table>
 <thead>

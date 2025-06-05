@@ -517,13 +517,13 @@ the spectrum of the bias-variance trade-off? The linear regression model
 lies on the high-bias, low-variance end of the spectrum. It imposes the
 strong assumption of linearity and can there for not adapt to non-linear
 relationships in the data, potentially leading to underfitting. The KNN
-model lies on the low-bias, high-variance end of the spectrum. Due to it
-high flexibility it can closely follow the training data. This decreases
-bias, but increases variance making it prone to overfitting. However, it
-is important to note that where on the spectrum of bias and variance a
-KNN model actually is, is strongly dependend on k. With an increasing k
-the model generally moves from a low-bias, high-variances to a more
-high-bias, low-variance end of the spectrum.</p>
+model lies on the low-bias, high-variance end of the spectrum. Due to
+its high flexibility it can closely follow the training data. This
+decreases bias, but increases variance making it prone to overfitting.
+However, it is important to note that where on the spectrum of bias and
+variance a KNN model actually is, is strongly dependend on k. With an
+increasing k the model generally moves from a low-bias, high-variances
+to a more high-bias, low-variance end of the spectrum.</p>
 </div>
 <div id="visualization-of-temporal-variations-of-observed-and-modelled-gpp-for-both-models" class="section level3">
 <h3>Visualization of temporal variations of observed and modelled GPP
@@ -583,20 +583,20 @@ regression the outliers in the positive direction are underestimated by
 the model. On the other hand some of the outliers in the negative
 direction are overestimated by the predictions of the linear regression
 model. The predictions with the KNN model underestimated outliers in the
-predictions and the predictions with the KNN model were not as good with
-the KNN model as with the linear regression model. This difference could
-be down to the fact that the prediction with the KNN model is done based
-on the values of the k-nearest neighbours and there for the predictions
-are ankered towards the neighbour values that were not as extreme. The
-prediction with the linear regression model is not influenced as
-directly by the neighbour-values and can therefore extrapolate a little
-bit better. Another interesting observation in the two plots is that our
-predictions only span over the years 2006-2014. For the predictions with
-the linear regression model and the KNN model we only used data with
-good quality. Our data with insufficient quality therefore is the data
-that is older. But we do not seem to have significant insufficients in
-the data after 2006, which is an indication, that the messurements
-nowdays are reliable.</p>
+predictions and the predictions with the KNN model were not as good as
+with the linear regression model. This difference could be down to the
+fact that the prediction with the KNN model is done based on the values
+of the k-nearest neighbours and there for the predictions are ankered
+towards the neighbour values that were not as extreme. The prediction
+with the linear regression model is not influenced as directly by the
+neighbour-values and can therefore extrapolate a little bit better.
+Another interesting observation in the two plots is that our predictions
+only span over the years 2006-2014. For the predictions with the linear
+regression model and the KNN model we only used data with good quality.
+Our data with insufficient quality therefore is the data that is older.
+But we do not seem to have significant insufficients in the data after
+2006, which is an indication, that the messurements nowdays are
+reliable.</p>
 </div>
 </div>
 <div id="exploring-the-role-of-k-in-a-knn-model" class="section level2">
